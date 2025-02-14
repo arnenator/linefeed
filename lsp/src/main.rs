@@ -1,4 +1,6 @@
-use tower_lsp::jsonrpc::Result;
+use chumsky::Parser;
+use linefeed::grammar::lexer::{self, Token};
+use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -49,6 +51,63 @@ impl LanguageServer for Backend {
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
+    }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        // Read file contents
+        let src = std::fs::read_to_string(params.text_document.uri.path())
+            .unwrap()
+            .as_ref();
+
+        // Break down the file contents into tokens using the lexer
+        let tokens = match lexer::lexer().parse(src).into_output_errors() {
+            (Some(tokens), e) if e.is_empty() => tokens,
+            (_, e) => return Err(Error::method_not_found()), // TODO: Create better error here
+        };
+
+        let mut semantic_tokens = Vec::new();
+
+        for token in tokens {
+            let token_type = match token.0 {
+                Token::Num(_) => 0,
+                Token::Str(_) => 1,
+                Token::Regex(_) => 2,
+                Token::Op(_) => 3,
+                Token::Ctrl(_) | Token::Bool(_) => 4,
+                Token::Ident(_) => 5,
+                Token::If
+                | Token::Else
+                | Token::Or
+                | Token::And
+                | Token::Not
+                | Token::Xor
+                | Token::Fn
+                | Token::Return
+                | Token::Unless
+                | Token::While
+                | Token::For
+                | Token::In
+                | Token::Break
+                | Token::Continue
+                | Token::Match
+                | Token::RangeExclusive
+                | Token::Null
+                | Token::RangeInclusive => 4,
+            };
+
+            let token_result = SemanticToken {
+                delta_line: 0,
+                delta_start: 0,
+                length: 0,
+                token_type: token_type as u32,
+                token_modifiers_bitset: 0 as u32,
+            };
+
+            semantic_tokens.push(token_result);
+        }
     }
 }
 
