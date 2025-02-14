@@ -7,3 +7,4 @@ edition = "2024"
 tower-lsp = "0.20.0"
 tokio = { version = "1", features = ["full"] }
 linefeed = { path = "../linefeed" }
+chumsky = { git = "https://github.com/zesterer/chumsky.git", branch = "main", features = ["memoization"] }
